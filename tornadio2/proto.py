@@ -22,6 +22,7 @@
 """
 import logging
 
+unicode = bytes
 
 logger = logging.getLogger('tornadio2.proto')
 
@@ -55,6 +56,15 @@ NOOP = '8'
 FRAME_SEPARATOR = u'\ufffd'
 
 
+def log_code(func, *args, **kwargs):
+    def f(*args, **kwargs):
+        v = func(*args, **kwargs)
+        print(v)
+
+        return v
+    return f
+
+@log_code
 def disconnect(endpoint=None):
     """Generate disconnect packet.
 
@@ -65,7 +75,7 @@ def disconnect(endpoint=None):
         endpoint or ''
         )
 
-
+@log_code
 def connect(endpoint=None):
     """Generate connect packet.
 
@@ -76,13 +86,13 @@ def connect(endpoint=None):
         endpoint or ''
         )
 
-
+@log_code
 def heartbeat():
     """Generate heartbeat message.
     """
     return u'2::'
 
-
+@log_code
 def message(endpoint, msg, message_id=None, force_json=False):
     """Generate message packet.
 
@@ -106,7 +116,8 @@ def message(endpoint, msg, message_id=None, force_json=False):
                    'message_id': message_id or u''}
 
     # Trying to send a dict over the wire ?
-    if not isinstance(msg, (unicode, str)) and isinstance(msg, (dict, object)):
+    if not isinstance(msg, (unicode
+        , str)) and isinstance(msg, (dict, object)):
         packed_data.update({'kind': JSON,
                             'msg': json.dumps(msg, **json_decimal_args)})
 
@@ -118,7 +129,7 @@ def message(endpoint, msg, message_id=None, force_json=False):
 
     return packed_message_tpl % packed_data
 
-
+@log_code
 def event(endpoint, name, message_id, *args, **kwargs):
     """Generate event message.
 
@@ -153,7 +164,7 @@ def event(endpoint, name, message_id, *args, **kwargs):
         json.dumps(evt)
     )
 
-
+@log_code
 def ack(endpoint, message_id, ack_response=None):
     """Generate ACK packet.
 
@@ -177,7 +188,7 @@ def ack(endpoint, message_id, ack_response=None):
         return u'6::%s:%s' % (endpoint or '',
                               message_id)
 
-
+@log_code
 def error(endpoint, reason, advice=None):
     """Generate error packet.
 
@@ -192,11 +203,10 @@ def error(endpoint, reason, advice=None):
                              (reason or ''),
                              (advice or ''))
 
-
+@log_code
 def noop():
     """Generate noop packet."""
     return u'8::'
-
 
 def json_dumps(msg):
     """Dump object as a json string
@@ -205,7 +215,6 @@ def json_dumps(msg):
         Object to dump
     """
     return json.dumps(msg)
-
 
 def json_load(msg):
     """Load json-encoded object
@@ -224,7 +233,7 @@ def decode_frames(data):
 
     """
     # Single message - nothing to decode here
-    assert isinstance(data, unicode), 'frame is not unicode'
+    assert isinstance(data, str), 'frame is not unicode'
 
     if not data.startswith(FRAME_SEPARATOR):
         return [data]

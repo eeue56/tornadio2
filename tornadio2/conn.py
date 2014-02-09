@@ -26,6 +26,24 @@ from inspect import ismethod, getmembers
 
 from tornadio2 import proto
 
+def with_metaclass(meta, *bases):
+    """
+    Helper for adding a metaclass to a class definition compatible with Python 2
+    and 3.
+
+    See Armin Ronacher's post for more information:
+    http://lucumr.pocoo.org/2013/5/21/porting-to-python-3-redux/
+    """
+    class metaclass(meta):
+        __call__ = type.__call__
+        __init__ = type.__init__
+        def __new__(cls, name, this_bases, d):
+            if this_bases is None:
+                return type.__new__(cls, name, (), d)
+            return meta(name, bases, d)
+    return metaclass('temporary_class', None, {})
+
+
 
 logger = logging.getLogger('tornadio2.conn')
 
@@ -62,15 +80,16 @@ class EventMagicMeta(type):
     """Event handler metaclass"""
     def __init__(cls, name, bases, attrs):
         # find events, also in bases
-        is_event = lambda x: ismethod(x) and hasattr(x, '_event_name')
+        is_event = lambda x: hasattr(x, '_event_name')
         events = [(e._event_name, e) for _, e in getmembers(cls, is_event)]
+        print('events: ', events)
         setattr(cls, '_events', dict(events))
 
         # Call base
         super(EventMagicMeta, cls).__init__(name, bases, attrs)
 
 
-class SocketConnection(object):
+class SocketConnection(with_metaclass(EventMagicMeta, object)):
     """Subclass this class and define at least `on_message()` method to make a Socket.IO
     connection handler.
 
@@ -96,9 +115,9 @@ class SocketConnection(object):
         sock.emit('test', {msg:'Hello World'});
 
     """
-    __metaclass__ = EventMagicMeta
 
     __endpoints__ = dict()
+    events = dict()
 
     def __init__(self, session, endpoint=None):
         """Connection constructor.
@@ -112,12 +131,23 @@ class SocketConnection(object):
         self.session = session
         self.endpoint = endpoint
 
+        if endpoint is None:
+            endpoint = '/ws/'
+        SocketConnection.__endpoints__[endpoint] = SocketConnection
+
         self.is_closed = False
 
         self.ack_id = 1
         self.ack_queue = dict()
 
         self._event_worker = None
+        is_event = lambda x: hasattr(x, '_event_name')
+        print('With events, ', self._events)
+        if len(self._events) > 0:
+            SocketConnection.events.update(self._events)
+
+        print(SocketConnection.events)
+        #self._events = {e._event_name : e for _, e in getmembers(self, is_event)}
 
     # Public API
     def on_open(self, request):
@@ -187,14 +217,18 @@ class SocketConnection(object):
             kwargs = {}
 
         """
-        handler = self._events.get(name)
+        handler = None
+        if name in self.events:
+            handler = self.events[name]
+        else:
+            print('Not found?!', name)
 
-        if handler:
+            print(self.events)
+            print(self._events)
+
+        if handler is not None:
             try:
-                if args:
-                    return handler(self, *args)
-                else:
-                    return handler(self, **kwargs)
+                return handler(self, *args, **kwargs)
             except TypeError:
                 if args:
                     logger.error(('Attempted to call event handler %s ' +
@@ -310,5 +344,6 @@ class SocketConnection(object):
         You can override this method to implement different endpoint
         connection class creation logic.
         """
+
         if endpoint in self.__endpoints__:
             return self.__endpoints__[endpoint]

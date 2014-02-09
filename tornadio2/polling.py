@@ -22,7 +22,7 @@
 """
 import time
 import logging
-import urllib
+from urllib.parse import unquote_plus
 
 from tornado.web import HTTPError, asynchronous
 
@@ -295,7 +295,7 @@ class TornadioJSONPHandler(TornadioXHRPollingHandler):
                 raise HTTPError(403)
 
             # Grab data
-            data = urllib.unquote_plus(data[2:]).decode('utf-8')
+            data = unquote_plus(data[2:]).decode('utf-8')
 
             # If starts with double quote, it is json encoded (socket.io workaround)
             if data.startswith(u'"'):

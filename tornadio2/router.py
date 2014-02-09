@@ -21,6 +21,8 @@
     Transport protocol router and main entry point for all socket.io clients.
 """
 
+import logging
+
 from tornado import ioloop, version_info
 from tornado.web import HTTPError
 
@@ -175,6 +177,7 @@ class TornadioRouter(object):
 
             if not proto:
                 # TODO: Error logging
+                print("No such proto as {t}".format(t=t))
                 continue
 
             # Only version 1 is supported

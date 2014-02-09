@@ -41,7 +41,18 @@ class TornadioWebSocketHandler(WebSocketHandler):
     # Transport name
     name = 'websocket'
 
+    @property
+    def server(self):
+        return self._server
+
+    @server.setter
+    def server(self, value):
+        print('setting server to be ', repr(value))
+        self._server = value
+        
+
     def initialize(self, server):
+        print('server is currently ', repr(server))
         self.server = server
         self.session = None
 
@@ -49,6 +60,7 @@ class TornadioWebSocketHandler(WebSocketHandler):
         self._global_heartbeats = self.server.settings['global_heartbeats']
 
         logger.debug('Initializing %s handler.' % self.name)
+
 
     # Additional verification of the websocket handshake
     # For now it will stay here, till https://github.com/facebook/tornado/pull/415
@@ -86,9 +98,15 @@ class TornadioWebSocketHandler(WebSocketHandler):
 
     def open(self, session_id):
         """WebSocket open handler"""
-        self.session = self.server.get_session(session_id)
-        if self.session is None:
-            raise HTTPError(401, "Invalid Session")
+
+        for _ in range(3):
+            self.session = self.server.get_session(session_id)
+            if self.session is None:
+                self.session = self.server.create_session(self.request)
+
+            if self.session is not None:
+                break
+                
 
         if not self._is_active:
             # Need to check if websocket connection was really established by sending hearbeat packet
@@ -144,7 +162,7 @@ class TornadioWebSocketHandler(WebSocketHandler):
 
         try:
             self.session.raw_message(message)
-        except Exception, ex:
+        except Exception as ex:
             logger.error('Failed to handle message: ' + traceback.format_exc(ex))
 
             # Close session on exception
